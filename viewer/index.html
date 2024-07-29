@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>3D Points</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"
+        integrity="sha384-2huaZvOR9iDzHqslqwpR87isEmrfxqyWOF7hr7BY6KG0+hVKLoEXMPUJw3ynWuhO"
+        crossorigin="anonymous"></script>
+</head>
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+    }
+</style>
+
+<body>
+    <script>
+
+        let scene, camera, renderer, controls, pointCloud, geometry, material, points;
+
+        // const maxPoints = 20000;
+        const maxPoints = 206 * 96;
+        let vertexBuffer = new Float32Array(maxPoints * 3); // 3 components (x, y, z) per vertex
+        let currentBufferSize = 0;
+        let accumulatedPoints = []; // New array to store accumulated points
+
+
+        const socket = io('http://localhost:3000');
+
+        socket.on('points', (data) => {
+            if (data instanceof ArrayBuffer) {
+                const newVertices = new Float32Array(data);
+                accumulatedPoints.push(...newVertices);
+
+                if (accumulatedPoints.length >= maxPoints * 3) {
+                    // We have accumulated 20000 points, update the vertex buffer
+                    vertexBuffer.set(accumulatedPoints.slice(0, maxPoints * 3));
+                    currentBufferSize = maxPoints;
+
+                    // Update geometry
+                    geometry.setAttribute('position', new THREE.BufferAttribute(vertexBuffer, 3));
+                    geometry.attributes.position.needsUpdate = true;
+
+                    // Clear accumulated points, keeping any excess for next update
+                    accumulatedPoints = accumulatedPoints.slice(maxPoints * 3);
+
+                    // console.log('Updated vertex buffer with 20000 points');
+                }
+            } else {
+                console.error('Received data is not an ArrayBuffer');
+            }
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100000);
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.BufferAttribute(vertexBuffer, 3));
+            material = new THREE.PointsMaterial({ color: 0xffffff, size: 10 });
+            points = new THREE.Points(geometry, material);
+            scene.add(points);
+
+            camera.position.set(0, 0, 5000);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+
+
+            window.addEventListener('resize', onWindowResize, false);
+        }
+        init();
+        animate();
+    </script>
+</body>
+
+</html>
